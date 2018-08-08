@@ -72,7 +72,7 @@ def main():
         sql = "select exchange, pair, ts from last_history_cache with (snapshot)"
         #sql = "select exchange, pair, ts from history where exchange='Cryptopia' and pair='DASH/LTC' order by ts"
 
-        results = Results(config_ini="emitter.ini", queue_name="results") #MessageBus()
+        results = Results(config_ini="emitter.ini", exchange_name="history_results", queue_name="results") #MessageBus()
         df = db.query(sql)
         if len(df)==0:
             raise ValueError("DataFrame is empty!")
@@ -82,6 +82,7 @@ def main():
             msg = f"{index} - {row['exchange']}: {row['pair']}"
             print(msg)
             results.send(message=msg)
+            
             sleep(2)
 
         elapsed = time.time() - begin

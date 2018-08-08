@@ -1,0 +1,130 @@
+{
+  "rabbit_version": "3.7.7",
+  "users": [
+    {
+      "name": "anyone",
+      "password_hash": "zibra2RcY5hlZTSy00MJ3k0UM6Qe0z18R3uJIIJDkm14WXwI",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ""
+    },
+    {
+      "name": "mike",
+      "password_hash": "D9nFNs4VgtBFZGi0fVYg67AEGPz/aE+1KDSVvdCAFQWVq6SS",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator"
+    },
+    {
+      "name": "rabbit",
+      "password_hash": "ok55jIHEHjR5M0st2Jg53Ih+Wpnv075nSqCZ0QdhfEK7PT0i",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "monitoring"
+    },
+    {
+      "name": "admin",
+      "password_hash": "Jls5UnMu/SypVPU8KSh66luY92Vrb1XiumQcyYh2z+bT6Bff",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator"
+    },
+    {
+      "name": "guest",
+      "password_hash": "Qf/Bsatr9gI9+ist2dewLVSPJJN34rBnjc2besmR78TmzL/d",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator"
+    },
+    {
+      "name": "test",
+      "password_hash": "PFOmbYeZDQRy1jRDG6ZE854ywXGlNFKBZ/D1JUPdDIf16nh1",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ""
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "rabbit",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "admin",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "guest",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "mike",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [
+    {
+      "user": "rabbit",
+      "vhost": "/",
+      "exchange": "",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "parameters": [],
+  "global_parameters": [
+    {
+      "name": "cluster_name",
+      "value": "rabbit@neptune"
+    }
+  ],
+  "policies": [],
+  "queues": [
+    {
+      "name": "results",
+      "vhost": "/",
+      "durable": false,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "receiver1",
+      "vhost": "/",
+      "durable": false,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "history_results",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": false,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "history_results",
+      "vhost": "/",
+      "destination": "results",
+      "destination_type": "queue",
+      "routing_key": "results",
+      "arguments": {}
+    }
+  ]
+}
