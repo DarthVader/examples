@@ -25,9 +25,10 @@ class Results():
             cred = pika.credentials.PlainCredentials(username=self.user_name, password=self.password)
             self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, credentials=cred))
             self.channel = self.connection.channel()
-            self.channel.exchange_declare(exchange=self.exchange_results, exchange_type='fanout')
+            self.channel.exchange_declare(exchange=self.exchange_results, exchange_type='fanout', durable=False, passive=False, auto_delete=False)
             #self.queue = self.channel.queue_declare(queue=queue_name, exclusive=True)
-            self.queue = self.channel.queue_declare(queue=queue_name, durable=True) # http://www.rabbitmq.com/queues.html  (durable, exclusive, auto_delete..)
+            #self.queue = self.channel.queue_declare(queue=queue_name, durable=True) # http://www.rabbitmq.com/queues.html  (durable, exclusive, auto_delete..)
+            self.queue = self.channel.queue_declare(queue=queue_name)
             
             #self.timer = time.time()
         except Exception as e:
@@ -41,22 +42,25 @@ class Results():
             routing_key="",
             body=message,
             properties=pika.BasicProperties(
+                content_type="text/plain",
                 delivery_mode=2,  # 1 - fire and forget, 2 - persistent
                 #expiration='3000'
             )
         )
         #self.timer = time.time()
 
-    def _callback(self, channel, method, properties, body):
-        print(body.decode('utf8'))
-        #logging.info(body)
-        #channel.basic_ack(delivery_tag = method.delivery_tag)
-
     def receive(self):
+
+        def _callback(channel, method, properties, body):
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            print(body.decode('utf8'))
+            #logging.info(body)
+            #channel.basic_ack(delivery_tag = method.delivery_tag)
+
         #self.channel.queue_bind(exchange=self.exchange_results, queue=self.queue.method.queue)
         self.channel.queue_bind(exchange=self.exchange_results, queue=self.queue_results)
-        #self.channel.basic_qos(prefetch_count=1)
-        self.channel.basic_consume(self._callback, queue=self.queue_results, no_ack=True)
+        self.channel.basic_qos(prefetch_count=1)
+        self.channel.basic_consume(_callback, queue=self.queue_results, no_ack=False)
         self.channel.start_consuming()
 
     def __del__(self):

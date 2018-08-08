@@ -16,7 +16,7 @@ class Database():
     Arbitron MSSQL database interaction
     """
 
-    def __init__(self, server, database, user, password):
+    def __init__(self): #, server, database, user, password):
 
         try:
             self.config = ConfigParser()
@@ -29,7 +29,7 @@ class Database():
 
             logging.info("Connecting to database...")
             start = time.time()
-            self.connection_string = f"mssql+pymssql://{server}/{database}"
+            self.connection_string = f"mssql+pymssql://{self.user}:{self.password}@{self.server}/{self.database}"
             self.engine = sa.create_engine(self.connection_string)
             self.connection = self.engine.connect()  # -- открываем соединение, пока открыто - висит блокировка. Закрытие по con.Close()
             elapsed = time.time() - start
@@ -66,7 +66,8 @@ def main():
         logging.basicConfig(filename=filename+'.log', filemode='w', level=logging.DEBUG, 
                                     format=u'%(filename)s:%(lineno)d %(levelname)-4s [%(asctime)s]  %(message)s')
         logging.info("Program started.")
-        db = Database("(local)", "Arbitron", "arb", "arb")
+        #db = Database("(local)", "Arbitron", "arb", "arb")
+        db = Database()
         #sql = "select exchange, pair, ts from v_last_ts" #
         sql = "select exchange, pair, ts from last_history_cache with (snapshot)"
         #sql = "select exchange, pair, ts from history where exchange='Cryptopia' and pair='DASH/LTC' order by ts"
