@@ -5,14 +5,13 @@ from pprint import pprint
 import pika # RabbitMQ
 #import ipgetter
 
-class Results():
+class Messages():
 
     def __init__(self, config_ini: str, exchange_name: str, queue_name: str):
         """
             :param config: ini-file
             :exchange_name: str
             :queue_name: name of queue, str type
-            :routing_key: str
         """   
         try:
             self.config = ConfigParser()
@@ -31,12 +30,7 @@ class Results():
             cred = pika.credentials.PlainCredentials(username=self.user_name, password=self.password)
             self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, credentials=cred))
             self.channel = self.connection.channel()
-            self.channel.exchange_declare(exchange=exchange_name, exchange_type="fanout", durable=False, passive=False, auto_delete=False)
-            #self.queue = self.channel.queue_declare(queue=queue_name, exclusive=True)
-            #self.queue = self.channel.queue_declare(queue=queue_name, durable=True) # http://www.rabbitmq.com/queues.html  (durable, exclusive, auto_delete..)
-            self.queue = self.channel.queue_declare(queue=queue_name)
             
-            #self.timer = time.time()
         except Exception as e:
             print(e)
             sys.exit()
@@ -54,7 +48,7 @@ class Results():
                 #expiration='3000'
             )
         )
-        #self.timer = time.time()
+
 
     def receive(self):
         #self.channel.queue_bind(exchange=self.exchange_results, queue=self.queue.method.queue)
@@ -73,6 +67,43 @@ class Results():
         self.channel.basic_consume(_callback, queue=self.queue_name, no_ack=False)
         self.channel.start_consuming()
 
+
     def __del__(self):
         self.connection.close()
         print("Connection closed.")
+
+
+class Results(Messages):
+
+    def __init__(self, config_ini: str, exchange_name: str, queue_name: str):
+        """
+            :param config: ini-file
+            :exchange_name: str
+            :queue_name: name of queue, str type
+        """   
+        super().__init__(config_ini, exchange_name, queue_name)
+
+        # fanout type-specific code:
+        self.channel.exchange_declare(exchange=exchange_name, exchange_type="fanout", durable=False, passive=False, auto_delete=False)
+        #self.queue = self.channel.queue_declare(queue=queue_name, exclusive=True)
+        #self.queue = self.channel.queue_declare(queue=queue_name, durable=True) # http://www.rabbitmq.com/queues.html  (durable, exclusive, auto_delete..)
+        self.queue = self.channel.queue_declare(queue=queue_name)
+
+
+class Jobs(Messages):
+
+    def __init__(self, config_ini: str, exchange_name: str, queue_name: str):
+        """
+            :param config: ini-file
+            :exchange_name: str
+            :queue_name: name of queue, str type
+        """   
+        super().__init__(config_ini, exchange_name, queue_name)
+
+        # topic exchange-specific code:
+        self.channel.exchange_declare(exchange=exchange_name, exchange_type="topic", durable=False, passive=False, auto_delete=False)
+        self.queue = self.channel.queue_declare(queue=queue_name)
+
+
+if __name__ == "__main__":
+    print("This module is not intended for direct use")

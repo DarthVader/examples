@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys
-from messages import Results
+from messages import Jobs
 import argparse
 
 def main():
@@ -14,7 +14,7 @@ def main():
     queue_name = args["queue"]
     #routing_key = args["routing_key"]
 
-    results = Results(config_ini="emitter.ini", exchange_name=exchange, queue_name=queue_name)
+    results = Jobs(config_ini="emitter.ini", exchange_name=exchange, queue_name=queue_name)
     #print(f"Exchange: {exchange}, queue: {queue_name}, routing_key: {routing_key}. Receiving messages...")
     print(f"Exchange: {exchange}, queue: {queue_name}.\nReceiving messages...")
     
