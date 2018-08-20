@@ -26,6 +26,7 @@ class Database():
             self.connection_string = f"mssql+pymssql://{self.user}:{self.password}@{self.server}/{self.database}"
             self.engine = sa.create_engine(self.connection_string)
             self.connection = self.engine.connect()  # -- открываем соединение, пока открыто - висит блокировка. Закрытие по con.Close()
+            self.connection.execution_options(autocommit=True)
             elapsed = time.time() - start
             logging.info(f"Connected in {elapsed:.4f} seconds")
 
@@ -48,6 +49,27 @@ class Database():
         
         except Exception as e:
             print(e)
+
+
+    def execute(self, sp, json):
+        """
+        executes stored procedure against MSSQL, returns Pandas Dataframe
+        """
+        try:
+            logging.info("Executing stored procedure {sp} ...")
+            start = time.time()
+            #df = pd.read_sql_query(sql, self.connection)  # выполняем sql запрос и записываем результат в pandas dataframe
+            #cursor = self.connection.cursor()
+            transaction = self.connection.begin()
+            self.connection.execute(f"{sp} '{json}'")
+            transaction.commit()
+            # self.connection.commit()
+            elapsed = time.time() - start
+            logging.info(f"Query completed in {elapsed:.4f} seconds")
+            #return df
+        
+        except Exception as e:
+            print(e)        
 
     def __del__(self):
         self.connection.close()

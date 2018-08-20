@@ -36,16 +36,16 @@ class Messages():
             sys.exit()
 
 
-    def send(self, message):
+    def send(self, message, routing_key=""):
         self.channel.basic_publish(
             exchange=self.exchange,
-            routing_key="",
+            routing_key=routing_key,
             body=message,
             properties=pika.BasicProperties(
-                content_type="text/plain",
+                content_type="application/json", #"text/plain",
                 content_encoding="gzip",
                 delivery_mode=2,  # 1 - fire and forget, 2 - persistent
-                #expiration='3000'
+                expiration='3000'
             )
         )
 

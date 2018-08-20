@@ -12,6 +12,8 @@ from ccxt.async_support import Exchange
 from colorama import init, Fore, Back, Style # color printing
 from datetime import datetime
 import logging
+# our imports
+from messages import Jobs, Results
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root)
@@ -41,6 +43,8 @@ class Markets:
         self.my_tokens = []          #  list of string values representing which token is allowed either on fsym or tsym
         self.last_fetch = {}         #  init dict with last fetches
         self._cache = []
+
+        self.results = Results("emitter.ini", exchange_name="history_results", queue_name="results")
         #self.db_context = db_context #  database context
         #self._cache = db_context._cache  #  local cache for storing last access times to exchanges and pairs
         #self.config = Settings()
@@ -191,13 +195,19 @@ class Markets:
                     self._cache[exchange][pair] = histories[-1]['timestamp'] + 1
                     
                     ##  SAVING history TO DATABASE...
-                    batch_cql = []
-                    for x in histories:
-                        batch_cql.append(f"INSERT INTO {self.config.data_keyspace}.{self.config.history_table} (exchange, pair, ts, id, price, amount, type, side, insert_date) VALUES " +
-                        f"('{exchange}', '{pair}', {x['timestamp']}, '{x['id']}', {x['price']}, {x['amount']}, '{x['type']}', '{x['side']}', toTimestamp(now()) )")
-                        #print(batch_cql)
-                    self.db_context.batch_execute(batch_cql)
-                    logging.info(f"{exchange}, {pair} saved {fetched_rows} rows in {timer2.tic()} seconds")
+                    # batch_cql = []
+                    # for x in histories:
+                    #     batch_cql.append(f"INSERT INTO {self.config.data_keyspace}.{self.config.history_table} (exchange, pair, ts, id, price, amount, type, side, insert_date) VALUES " +
+                    #     f"('{exchange}', '{pair}', {x['timestamp']}, '{x['id']}', {x['price']}, {x['amount']}, '{x['type']}', '{x['side']}', toTimestamp(now()) )")
+                    #     #print(batch_cql)
+                    # self.db_context.batch_execute(batch_cql)
+                    # logging.info(f"{exchange}, {pair} saved {fetched_rows} rows in {timer2.tic()} seconds")
+                    
+                    #   SENDING history to RabbitMQ
+                    # results.send(message=histories)
+
+                    print(f"{exchange}, {pair} processed {fetched_rows} rows in {timer2.tic()} seconds")
+                    logging.info(f"{exchange}, {pair} processed {fetched_rows} rows in {timer2.tic()} seconds")
                 
                 #print(f"\t{Style.DIM}{datetime.now()} Saved {exchange}: {pair} ({len(histories)} rows, {timer.tic()} seconds){Style.RESET_ALL}")
                 print(f"\t{Style.DIM}{datetime.now()} Received and Saved {Fore.YELLOW}{exchange}: {Fore.BLUE}{pair} {Fore.WHITE}({len(histories)} rows, {timer.tic()} seconds){Style.RESET_ALL}")
