@@ -5,6 +5,7 @@ import logging, time, sys
 import pandas as pd
 from configparser import ConfigParser
 
+
 class Database():
     """
     Arbitron MSSQL database interaction
