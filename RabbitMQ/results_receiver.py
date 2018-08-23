@@ -22,7 +22,7 @@
 '''
 
 import sys
-from messages import Results
+from messages import Messages #Results
 import argparse
 
 def main():
@@ -38,7 +38,7 @@ def main():
     queue_name = args["queue"] # any name. For example "queue1"
     #routing_key = args["routing_key"]
 
-    results = Results(config_ini="rabbitmq.ini", exchange_name=exchange, queue_name=queue_name)
+    results = Messages(type="results", config_ini="rabbitmq.ini", exchange_name=exchange, queue_name=queue_name)
     #print(f"Exchange: {exchange}, queue: {queue_name}, routing_key: {routing_key}. Receiving messages...")
     print(f"Exchange: {exchange}, queue: {queue_name}.\nReceiving messages...")
     

@@ -7,8 +7,9 @@ import pika # RabbitMQ
 
 class Messages():
 
-    def __init__(self, config_ini: str, exchange_name: str, queue_name: str):
+    def __init__(self, type: str, config_ini: str, exchange_name: str, queue_name: str):
         """
+            :param type: type of messaging - "jobs" or "results"
             :param config: ini-file
             :exchange_name: str
             :queue_name: name of queue, str type
@@ -23,6 +24,7 @@ class Messages():
 
             self.exchange = exchange_name #self.config['rabbitmq']['exchange_results']
             self.queue_name = queue_name
+            self.message = ""
             #self.routing_key = routing_key
             #self.queue_results = self.config['rabbitmq']['queue_results']
             #self.results_routing_key = self.config['rabbitmq']['results_routing_key']
@@ -30,6 +32,12 @@ class Messages():
             cred = pika.credentials.PlainCredentials(username=self.user_name, password=self.password)
             self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host, credentials=cred))
             self.channel = self.connection.channel()
+
+            # defining type if messaging
+            self.exchange_type = "fanout" if type=="results" else "topic"
+            self.channel.exchange_declare(exchange=exchange_name, exchange_type=self.exchange_type, 
+                                            durable=False, passive=False, auto_delete=False)
+            self.queue = self.channel.queue_declare(queue=queue_name)            
             
         except Exception as e:
             print(e)
@@ -45,23 +53,35 @@ class Messages():
                 content_type="application/json", #"text/plain",
                 content_encoding="gzip",
                 delivery_mode=2,  # 1 - fire and forget, 2 - persistent
-                expiration='3000'
+                # expiration='9000' # 9 seconds
+                #expiration='2592000000' # 30 days
             )
         )
 
 
-    def receive(self):
+    def receive(self, results=None):
+        """
+        Receives messages and takes callback function as optional parameter.
+        Callback function must implement resending and takes only 1 parameter - message content to resend
+        """
         #self.channel.queue_bind(exchange=self.exchange_results, queue=self.queue.method.queue)
         self.channel.queue_bind(exchange=self.exchange, 
                                 queue=self.queue_name,
-                                #routing_key=self.routing_key,
+                                # routing_key=self.routing_key,
                                 # routing_key=routing_key, 
                                 )
 
         def _callback(channel, method, properties, body):
+            msg = body.decode('utf8')
+            self.message = msg
+            if results != None:
+                print(f"Resending {msg} from [history_job] queue to [history_results] queue")
+                #results.channel.basic_ack()
+                results.send(msg, "history_results")
+            else:
+                print(f"{msg} (queue={self.queue_name})")
             channel.basic_ack(delivery_tag=method.delivery_tag)
-            print(f"{body.decode('utf8')} (queue={self.queue_name})")
-            #logging.info(body)
+            #results.channel.basic_ack(delivery_tag=method.delivery_tag)
 
         self.channel.basic_qos(prefetch_count=1)
         self.channel.basic_consume(_callback, queue=self.queue_name, no_ack=False)
@@ -70,39 +90,7 @@ class Messages():
 
     def __del__(self):
         self.connection.close()
-        print("Connection closed.")
-
-
-class Results(Messages):
-
-    def __init__(self, config_ini: str, exchange_name: str, queue_name: str):
-        """
-            :param config: ini-file
-            :exchange_name: str
-            :queue_name: name of queue, str type
-        """   
-        super().__init__(config_ini, exchange_name, queue_name)
-
-        # fanout type-specific code:
-        self.channel.exchange_declare(exchange=exchange_name, exchange_type="fanout", durable=False, passive=False, auto_delete=False)
-        #self.queue = self.channel.queue_declare(queue=queue_name, exclusive=True)
-        #self.queue = self.channel.queue_declare(queue=queue_name, durable=True) # http://www.rabbitmq.com/queues.html  (durable, exclusive, auto_delete..)
-        self.queue = self.channel.queue_declare(queue=queue_name)
-
-
-class Jobs(Messages):
-
-    def __init__(self, config_ini: str, exchange_name: str, queue_name: str):
-        """
-            :param config: ini-file
-            :exchange_name: str
-            :queue_name: name of queue, str type
-        """   
-        super().__init__(config_ini, exchange_name, queue_name)
-
-        # topic exchange-specific code:
-        self.channel.exchange_declare(exchange=exchange_name, exchange_type="topic", durable=False, passive=False, auto_delete=False)
-        self.queue = self.channel.queue_declare(queue=queue_name)
+        print(f"Connection for {self.exchange_type} closed.")
 
 
 if __name__ == "__main__":

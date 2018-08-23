@@ -13,7 +13,7 @@ from colorama import init, Fore, Back, Style # color printing
 from datetime import datetime
 import logging
 # our imports
-from messages import Jobs, Results
+from messages import Messages #Jobs, Results
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(root)
@@ -36,7 +36,7 @@ class Markets:
     fiat = ['USD','EUR','JPY','UAH','USDT','RUB','CAD','NZDT']
     allowed_tsyms = ['USD', 'USDT', 'BTC', 'ETH', 'DOGE', 'LTC', 'EUR', 'RUB'] # allowed symbols for convertion to
 
-    def __init__(self):
+    def __init__(self, results):
         self.exchanges = {}          #  exchanges - dict of ccxt objects
         self.exchanges_list = []     #  exchanges_list - custom list of exchanges to filter (lowercase)
         self.ex_pairs = {}           #  ex_pairs - dict of exchanges which contains corresponding trading pairs
@@ -44,7 +44,7 @@ class Markets:
         self.last_fetch = {}         #  init dict with last fetches
         self._cache = []
 
-        self.results = Results("emitter.ini", exchange_name="history_results", queue_name="results")
+        self.results = results # Messages(type="results", "emitter.ini", exchange_name="history_results", queue_name="history_results")
         #self.db_context = db_context #  database context
         #self._cache = db_context._cache  #  local cache for storing last access times to exchanges and pairs
         #self.config = Settings()
