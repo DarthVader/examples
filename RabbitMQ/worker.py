@@ -19,8 +19,10 @@
 '''
 
 import sys
+import pandas as pd
 from messages import Messages
 from markets import Markets
+from database import Database #! remove ASAP!
 import argparse
 
 def main():
@@ -35,17 +37,21 @@ def main():
     #queue_name = args["queue"] # jobs
     #routing_key = args["routing_key"]
     config_ini = "emitter.ini"
-
-
     job    = Messages(type="jobs", config_ini=config_ini, exchange_name= "history_jobs", queue_name="history_jobs")
     results = Messages(type="results", config_ini=config_ini, exchange_name="history_results", queue_name="history_results") #MessageBus()    
-    market = Markets(results)
+    market = Markets()
+
+    db = Database("database.ini")
+    ex_list = db.query("select id from exchanges where enabled=1").id.tolist()
+    market.load_exchanges(ex_list)
 
     #print(f"Exchange: {exchange}, queue: {queue_name}, routing_key: {routing_key}. Receiving messages...")
     print(f"Exchange: history_jobs, queue: history_jobs.\nReceiving messages...")
     
     try:
-        job.receive(results)
+        callbacks = [ market, results ]
+                    #  {'function': results.send,        'params': {'routing_key': 'history_results'} ]
+        job.receive(callbacks)
         # if job.message != "":
         #     print(f"Resending {job.message} from history_job to history_results)")
         #     #results.send(job.message)

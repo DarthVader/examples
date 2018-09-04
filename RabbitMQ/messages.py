@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, logging, time
+import sys, logging, time, json
 from configparser import ConfigParser
 from pprint import pprint
 import pika # RabbitMQ
@@ -59,7 +59,7 @@ class Messages():
         )
 
 
-    def receive(self, results=None):
+    def receive(self, callbacks=[]):
         """
         Receives messages and takes callback function as optional parameter.
         Callback function must implement resending and takes only 1 parameter - message content to resend
@@ -74,10 +74,28 @@ class Messages():
         def _callback(channel, method, properties, body):
             msg = body.decode('utf8')
             self.message = msg
-            if results != None:
-                print(f"Resending {msg} from [history_job] queue to [history_results] queue")
-                #results.channel.basic_ack()
-                results.send(msg, "history_results")
+            if callbacks != []:
+                market, results = callbacks
+
+                payload = json.loads(msg)
+                exchange = payload['exchange']
+                pair = payload['pair']
+
+                print(f"Fetching {exchange}: {pair} ... ", end='')
+
+                try:
+                    histories = market.fetch_trades(exchange=exchange, pair=pair)
+                    histories = [x.pop('info') for x in histories] # delete all infos
+                    histories = {'exchange': exchange,
+                                'pair': pair,
+                                'histories': histories
+                                }
+                    last_ts = histories['histories'][-1]['timestamp']
+                    last_price = histories['histories'][-1]['price']
+                    results.send(json.dumps(histories), "history_results")
+                    print(f"SUCCESS. {last_ts} Last price = {last_price}")
+                except Exception as e:
+                    print(f"FAILED.\n\n{e}\n")
             else:
                 print(f"{msg} (queue={self.queue_name})")
             channel.basic_ack(delivery_tag=method.delivery_tag)

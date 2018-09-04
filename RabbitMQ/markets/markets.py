@@ -36,7 +36,7 @@ class Markets:
     fiat = ['USD','EUR','JPY','UAH','USDT','RUB','CAD','NZDT']
     allowed_tsyms = ['USD', 'USDT', 'BTC', 'ETH', 'DOGE', 'LTC', 'EUR', 'RUB'] # allowed symbols for convertion to
 
-    def __init__(self, results):
+    def __init__(self): #! results
         self.exchanges = {}          #  exchanges - dict of ccxt objects
         self.exchanges_list = []     #  exchanges_list - custom list of exchanges to filter (lowercase)
         self.ex_pairs = {}           #  ex_pairs - dict of exchanges which contains corresponding trading pairs
@@ -44,7 +44,7 @@ class Markets:
         self.last_fetch = {}         #  init dict with last fetches
         self._cache = []
 
-        self.results = results # Messages(type="results", "emitter.ini", exchange_name="history_results", queue_name="history_results")
+        # self.results = results #! Messages(type="results", "emitter.ini", exchange_name="history_results", queue_name="history_results")
         #self.db_context = db_context #  database context
         #self._cache = db_context._cache  #  local cache for storing last access times to exchanges and pairs
         #self.config = Settings()
@@ -87,8 +87,11 @@ class Markets:
             :param exchange: ccxt object instance
         """   
         #assert(self.exchanges != {}, "exchanges are not loaded!")
-        await exchange.load_markets()
-        print("{} market metadata loaded".format(exchange.name))
+        try:
+            await exchange.load_markets()
+            print("{} market metadata loaded".format(exchange.name))
+        except Exception:
+            print(f"{exchange.name} {Fore.RED+Style.BRIGHT} market metadata NOT loaded{Style.RESET_ALL}")
 
 
     async def _run_tasks(self, exchanges):
@@ -99,8 +102,13 @@ class Markets:
         """   
         #assert(self.exchanges != {}, "exchanges are not loaded!")
         tasks = []
+        i = 0
         for ex in exchanges.items():
+            # i += 1
             tasks.append(asyncio.ensure_future(self._load_exchange(ex[1])))
+            # if i == 9:
+            #    i = 0
+            #     asyncio.sleep(3)
         #await asyncio.gather(*tasks)
         await asyncio.wait(tasks)
 
@@ -119,8 +127,9 @@ class Markets:
             #loop.close()
         except KeyboardInterrupt:
             print("Leaving by Ctrl-C...")
-            sys.exit()      
-
+            sys.exit()
+        except Exception:
+            print("Exception in markets.py:126")
 
     def reload_pairs(self, my_tokens):
         """
@@ -139,8 +148,9 @@ class Markets:
 
 
 
-    def fetch_trades(self, exchange: str, pair: str, limit: int=100):
+    def fetch_trades(self, exchange: str, pair: str, since: int, limit: int):
         """ 
+
         Fetches last N trades for given exchange and pair. SYNCHRONOUS version!
 
             :param exchange: string value of ccxt exchange id (look up exchange id here: https://github.com/ccxt/ccxt)
@@ -149,14 +159,16 @@ class Markets:
         """
         ex_obj = getattr(ccxt_s, exchange)
         ex = ex_obj()
-        #ex.load_markets()  # --------- WHAT FOR ???
+        # if ex == None:
+        #     ex.load_markets()  # --------- WHAT FOR ???
+
         ex.enableRateLimit = True,
-        histories = None
+        histories = []
+        #params = {'from_id': from_id } # exchange-specific non-unified parameter name
+
         try:
-            if limit==None:
-                histories = ex.fetch_trades(symbol=pair)
-            else:
-                histories = ex.fetch_trades(symbol=pair, limit=100)
+            histories = ex.fetch_trades(symbol=pair, since=since, limit=limit)
+
         except Exception as e:
             print(f"Error in {__file__}.fetch_trades(). {Fore.YELLOW}{e}{Fore.RESET}")
 
@@ -181,9 +193,9 @@ class Markets:
                 since = self._cache[exchange][pair]
                 #since = None
                 if since == None:
-                    histories = await self.exchanges[exchange].fetch_trades(pair, limit=100)
+                    histories = await self.exchanges[exchange].fetch_trades(pair, limit=50)
                 else:
-                    histories = await self.exchanges[exchange].fetch_trades(pair, since=since)
+                    histories = await self.exchanges[exchange].fetch_trades(pair, since=since, limit=50)
 
                 fetched_rows = len(histories)
                 #print(f"\t{Style.DIM}{datetime.now()} Received {Fore.YELLOW}{exchange}: {Fore.BLUE}{pair} {Fore.WHITE}({len(histories)} rows, {timer.tic()} seconds){Style.RESET_ALL}")

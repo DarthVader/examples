@@ -62,22 +62,30 @@ def main():
         db = Database(config_ini)
         #sql = "select exchange, pair, ts from v_last_ts" #
         #sql = "select exchange, pair, ts from history where exchange='Cryptopia' and pair='DASH/LTC' order by ts"
-        sql = "select exchange, pair, ts from mem.history_cache with (snapshot)"
-
-        jobs = Messages(type="jobs", config_ini=config_ini, exchange_name="history_jobs", queue_name="jobs")  #MessageBus()
+        sql = "select lower(iif(exchange='HitBTC','hitbtc2',exchange)) exchange, pair, [timestamp] from mem.history_cache t with (snapshot)"
         df = db.query(sql)
         if len(df)==0:
             raise ValueError("No jobs to run. (DataFrame is empty)")
+
+        jobs = Messages(type="jobs", config_ini=config_ini, exchange_name="history_jobs", queue_name="jobs")  #MessageBus()
         
         # spit out Dataframe line-by-line
         print("Waiting for workers...")
         while True:
+            df = db.query(sql)
+            if len(df)==0:
+                raise ValueError("Database is not responding. (DataFrame is empty)")
+
             for index, row in df.iterrows():
                 workers = getActiveWorkers(jobs.host, jobs.port, "history_jobs") #! get active RabbitMQ connections
                 if len(workers) != 0:
-                    msg = f"{index} - {row['exchange']}: {row['pair']}"
+                    msg = {'exchange': row['exchange'], 'pair': row['pair'], 'ts': row['timestamp']}
+                    # msg = f"{index} - {row['exchange']}: {row['pair']}"
+                    # msg = f"'exchange':'{row['exchange']}','pair':'{row['pair']}'"
+                    # msg = '"exchange:"{}"","pair":"{}"'.format(row['exchange'], row['pair'])
+                    # msg = f"\"exchange\":\"{row['exchange']}\",\"pair\":\"{row['pair']}\""
                     delay = common_delay/len(workers)/1000
-                    jobs.send(message=msg, routing_key="history_jobs")
+                    jobs.send(message=json.dumps(msg), routing_key="history_jobs")
                     print(msg, " active workers =", len(workers), " delay =", delay)
                     sleep(delay)
                 else:
