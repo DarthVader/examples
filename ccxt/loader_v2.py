@@ -66,9 +66,6 @@ def main():
                     if histories != []:
                         for row in histories:
                             del row['info']
-                            # for v in row:
-                            #     if row[v] is None:
-                            #         del row[v]
                         
                         histories = {'exchange': exchange,
                                     'pair': pair,

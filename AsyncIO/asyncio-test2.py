@@ -30,8 +30,9 @@ async def task3():
     print(f"task3 ended at: {timer.tic()}")
     
 
-loop = asyncio.get_event_loop()
 tasks = [task1(), task2(), task3()]
+
+loop = asyncio.get_event_loop()
 loop.run_until_complete(asyncio.wait(tasks))
 loop.close()
 
