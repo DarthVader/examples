@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-''' ================
-    Jobs emitter
-    ================
+''' =================
+    Loader (all-in-1)
+    =================
 
     (x) loader_v2.py               | History loader
                |
