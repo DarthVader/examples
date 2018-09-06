@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import ccxt, os
+import ccxt
+import os
 from ccxt import ExchangeError
 from database import Database
 from tabulate import tabulate
@@ -8,6 +9,7 @@ from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 
 def main():
+    print("Fetch History demo")
     os.chdir("ccxt")
     db = Database(os.getcwd() + "\\database.ini")
     exchanges = db.query("select id from exchanges where enabled=1").id.tolist()
