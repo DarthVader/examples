@@ -14,9 +14,11 @@ histories = []
 
 async def load_exchange(exchange):
     #print(f"loading {exchange}")
-    ex_obj = getattr(ccxt, exchange)
-    ex = ex_obj()
-    ex.enableRateLimit = True
+    ex = getattr(ccxt, exchange)({
+        'enableRateLimit': True,
+        # 'verbose': True,
+        # 'proxy':'https://cors-anywhere.herokuapp.com/',
+    })
     try:
         ex.load_markets()
         markets[exchange] = ex
@@ -31,7 +33,7 @@ def main():
     os.chdir("ccxt")
 
     filename = os.path.splitext(basename(__file__))[0] + ".log"
-    logging.basicConfig(filename=filename, level=logging.INFO, format=u'%(filename)s:%(lineno)d %(levelname)-8s [%(asctime)s]  %(message)s')
+    logging.basicConfig(filename=filename, level=logging.ERROR, format=u'%(filename)s:%(lineno)d %(levelname)-8s [%(asctime)s]  %(message)s')
     db = Database(os.getcwd() + "\\database.ini")
     #filename = os.path.splitext(__file__)[0] + ".log"
 
@@ -42,21 +44,12 @@ def main():
     loop.run_until_complete(asyncio.wait(tasks))
     loop.close()
 
-    #exchanges = db.query("select id from exchanges where enabled=1")['id'].tolist()
     pairs = db.query("select exchange, pair from mem.exchanges_pairs with (snapshot) where enabled=1")
-
-    # exchanges = ['binance','huobipro','bittrex','cryptopia','exmo','hitbtc2','kraken','okex','poloniex','yobit']
-    # pair = "ETH/USDT"
     limit = 100
-
-    # dt = datetime.strptime('01.09.2018 15:30:25', '%d.%m.%Y %H:%M:%S')
-    # ts = int(dt.replace(tzinfo=timezone.utc).timestamp())
-    # since = ts *1000
-    # print(f"Selected pair: {pair}, start date: {dt.strftime('%d.%m.%Y %H:%M:%S')} [since={since}]\n")
 
     for _, row in pairs.iterrows():
         exchange, pair = row
-        print(f"Fetching history for {exchange}/{pair}")
+        print(f"Fetching history and orderbook for {exchange}/{pair}")
         
         if exchange not in markets:
             continue
@@ -75,14 +68,20 @@ def main():
 
         try:
             histories = market.fetch_trades(symbol=pair, since=since, limit=limit)
-            
+            orderbook = market.fetch_order_book(symbol=pair, )
+            ts = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
+            orderbook = {'exchange': exchange,
+                         'pair': pair,
+                         'timestamp': ts,
+                         'orderbook': orderbook
+                        }
+
         except ExchangeError: # Please specify a time window of no more than 1 month.
             pass
-            # pair = pair.split("/")[0]+"/USD" if pair.split("/")[1]=="USDT" else pair.split("/")[0]+"/USDT"
-            # histories = market.fetch_trades(symbol=pair, since=since, limit=limit)
+
         except Exception as e:
-            print(f"Error in {filename}.fetch_trades(). {Fore.YELLOW}{e}{Fore.RESET}")
-            logging.info(f"fetch_trades({exchange}/{pair}) FAILED!")
+            print(f"Error in {filename}.fetch_all(). {Fore.YELLOW}{e}{Fore.RESET}")
+            logging.info(f"fetch_all({exchange}/{pair}) FAILED!")
         
         if histories != []:
             try:
@@ -90,24 +89,32 @@ def main():
                     del row['info']
             except:
                 pass
-
             history = { 'exchange': exchange,
                         'pair': pair,
                         'histories': histories
                        }            
             try:
                 db.execute("mem.save_history_json", json.dumps(history))
+
             except Exception as e:
                 print(f"Error in {filename}.mem.save_history_json(). {Fore.YELLOW}{e}{Fore.RESET}")
-                logging.info(f"fetch_trades({exchange}/{pair}) FAILED!")
+                logging.error(f"fetch_trades({exchange}/{pair}) FAILED!")
         else:
             # search for acceptable since value
             since += 1000 # increment by a second
             logging.info(f"fetch_trades({exchange}/{pair}) returned empty dataset, next ts={since}")
 
-        # status = "WORKS" if str(histories[0]['timestamp'])[:4] == str(since)[:4] else "DOESN'T WORK!"
-        # print(f"dt=[{histories[0]['datetime']}], ts=[{histories[0]['timestamp']}], price={histories[0]['price']} -- {status}")
-        # histories = []
+        try:
+            db.execute("mem.save_orderbook_json", json.dumps(orderbook))
+
+        except ExchangeError:
+            print("FAILED!")
+            logging.error(f"{exchange}/{pair} fetch_order_book failed!")
+
+        except Exception as e:
+            print(f"Error in fetch_order_book(). {Fore.YELLOW}{e}{Fore.RESET}")
+            logging.info(f"{exchange}/{pair} fetch_order_book failed!")
+
 
 if __name__ == '__main__':
     main()

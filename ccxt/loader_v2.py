@@ -18,7 +18,7 @@ import requests, json, pickle
 from requests.auth import HTTPBasicAuth
 #from messages import Messages #Jobs #, Results
 from database import Database
-from markets import Markets
+# from markets import Markets
 
 common_delay = 2000
 
@@ -38,9 +38,9 @@ def main():
         #sql = "select exchange, pair, ts from v_last_ts" #
         #sql = "select exchange, pair, ts from history where exchange='Cryptopia' and pair='DASH/LTC' order by ts"
 
-        market = Markets()
-        ex_list = db.query("select id from dbo.exchanges where enabled=1").id.tolist()
-        market.load_exchanges(ex_list)
+        #market = Markets()
+        ex_list = db.query("select id from dbo.exchanges where enabled=1")['id'].tolist()
+        #market.load_exchanges(ex_list)
         #with open("markets.ser", "wb") as f:
         #    json.dump(market, fp=f)
 

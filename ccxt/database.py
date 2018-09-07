@@ -48,11 +48,11 @@ class Database():
         executes query against MSSQL, returns Pandas Dataframe
         """
         try:
-            logging.info("Starting query...")
+            #logging.info("Starting query...")
             start = time.time()
             df = pd.read_sql_query(sql, self.connection)  # выполняем sql запрос и записываем результат в pandas dataframe
             elapsed = time.time() - start
-            logging.info(f"Query completed in {elapsed:.4f} seconds")
+            logging.info(f"Query {sql} completed in {elapsed:.4f} seconds")
             return df
         
         except Exception as e:
@@ -61,13 +61,13 @@ class Database():
 
     def execute_sql(self, sql):
         try:
-            logging.info("Starting query...")
+            #logging.info("Starting SP...")
             start = time.time()
             transaction = self.connection.begin()
             result = self.connection.execute(sql)  # выполняем sql запрос и записываем результат в pandas dataframe
             transaction.commit()
             elapsed = time.time() - start
-            logging.info(f"Query completed in {elapsed:.4f} seconds")
+            logging.info(f"{sql} executed in {elapsed:.4f} seconds")
             return result
         
         except Exception as e:
@@ -78,7 +78,7 @@ class Database():
         executes stored procedure against MSSQL, returns Pandas Dataframe
         """
         try:
-            logging.info("Executing stored procedure {sp} ...")
+            #logging.info("Executing stored procedure {sp} ...")
             start = time.time()
             #df = pd.read_sql_query(sql, self.connection)  # выполняем sql запрос и записываем результат в pandas dataframe
             #cursor = self.connection.cursor()
@@ -87,7 +87,7 @@ class Database():
             transaction.commit()
             # self.connection.commit()
             elapsed = time.time() - start
-            logging.info(f"Query completed in {elapsed:.4f} seconds")
+            logging.info(f"SP executed in {elapsed:.4f} seconds")
             #return df
         
         except Exception as e:
@@ -99,7 +99,7 @@ class Database():
         executes stored procedure against MSSQL, returns Pandas Dataframe
         """
         try:
-            logging.info("Executing stored procedure {sp} ...")
+            #logging.info("Executing stored procedure {sp} ...")
             start = time.time()
             #df = pd.read_sql_query(sql, self.connection)  # выполняем sql запрос и записываем результат в pandas dataframe
             #cursor = self.connection.cursor()
@@ -108,7 +108,7 @@ class Database():
             transaction.commit()
             # self.connection.commit()
             elapsed = time.time() - start
-            logging.info(f"Query completed in {elapsed:.4f} seconds")
+            logging.info(f"{sp} executed in {elapsed:.4f} seconds")
 
         except Exception as e:
             print(e)        
