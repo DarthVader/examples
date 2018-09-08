@@ -73,26 +73,6 @@ class Database():
         except Exception as e:
             print(e)        
 
-    def execute_sp(self, sp, *args):
-        """
-        executes stored procedure against MSSQL, returns Pandas Dataframe
-        """
-        try:
-            #logging.info("Executing stored procedure {sp} ...")
-            start = time.time()
-            #df = pd.read_sql_query(sql, self.connection)  # выполняем sql запрос и записываем результат в pandas dataframe
-            #cursor = self.connection.cursor()
-            transaction = self.connection.begin()
-            self.connection.execute(f"{sp} {args}") # ! NOT WORKING !
-            transaction.commit()
-            # self.connection.commit()
-            elapsed = time.time() - start
-            logging.info(f"SP executed in {elapsed:.4f} seconds")
-            #return df
-        
-        except Exception as e:
-            print(e)        
-
 
     def execute(self, sp, json):
         """
@@ -112,52 +92,6 @@ class Database():
 
         except Exception as e:
             print(e)        
-
-    # def json_save(self, result: str):
-    #     self.connection.execute("dbo.save_histories_json", json.dumps(result))
-
-    def _pandas_factory(self, colnames, rows):
-        # ! Method to convert output to Pandas
-        return pd.DataFrame(rows, columns=colnames)
-
-    
-    def get_exchanges(self, all=False):
-        """ Receiving exchanges data """
-        try:
-            sql = "select * from exchanges"
-            sql+=" where enabled=1" if all==False else ""
-                
-            self.df_exchanges = self.query(sql)
-            self.exchanges_list = self.df_exchanges.id.tolist()
-
-        except Exception as e:
-            print(Fore.RED+Style.BRIGHT+"Error in {__file__}.get_exchanges(). {} {Style.RESET_ALL}".format(e.args[0], Fore=Fore, Style=Style))
-
-
-    def get_tokens(self, all=False):
-        """ fetches tokens from database"""
-        try:
-            sql = f"select * from tokens"
-            sql+=" where enabled=1" if all==False else ""
-            self.df_tokens = self.query(sql)
-            self.tokens_list = self.df_tokens.symbol.tolist()
-            self.low_fee_tokens = self.df_tokens[self.df_tokens.low_fee==1].symbol.tolist()
-            self.high_volume_tokens = self.df_tokens[self.df_tokens.high_volume==1].symbol.tolist()
-
-        except Exception as e:
-            print(Fore.RED+Style.BRIGHT+"{} {Style.RESET_ALL}".format(e.args[0], Fore=Fore, Style=Style))        
-
-
-    def get_pairs(self):
-        """ fetches pairs from database """
-        try:
-            sql = f"SELECT * FROM mem.exchanges_pairs WITH (SNAPSHOT) where enabled=1"
-            self.df_pairs = self.query(sql)
-            self.pairs = pd.DataFrame(self.df_pairs.groupby(['pair'])['exchange'].apply(list)).exchange.to_dict()
-            self.exchanges = self.df_pairs.groupby(['exchange'])['pair'].apply(list).to_dict()
-            
-        except Exception as e:
-            print(Fore.RED+Style.BRIGHT+"{} {Style.RESET_ALL}".format(e.args[0], Fore=Fore, Style=Style))        
 
 
 
