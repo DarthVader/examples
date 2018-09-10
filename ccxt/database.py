@@ -11,7 +11,16 @@ class Database():
     """
     Arbitron MSSQL database interaction
     """
-    def __init__(self, config_ini: str): #, server, database, user, password):
+    __instance = object
+
+    @classmethod
+    def getInstance(self):
+        if not isinstance(Database.__instance, Database):
+            Database.__instance = Database("database.ini")
+        return Database.__instance
+        
+
+    def __init__(self, config_ini = "database.ini"): #, server, database, user, password):
         try:
             init(convert=True)  # colorama init 
             self.config = ConfigParser()
@@ -33,6 +42,7 @@ class Database():
             start = time.time()
             self.connection_string = f"mssql+pymssql://{self.user}:{self.password}@{self.server}/{self.database}"
             self.engine = sa.create_engine(self.connection_string)
+
             self.connection = self.engine.connect()  # -- открываем соединение, пока открыто - висит блокировка. Закрытие по con.Close()
             self.connection.execution_options(autocommit=True)
             elapsed = time.time() - start
