@@ -1,131 +1,205 @@
 #!/usr/bin/env python3
 import ccxt
 import os, sys, time
-import json, logging
-import threading, zlib, pickle
+import json, logging, zlib, pickle
+import threading
+from threading import Lock
+# import multiprocessing as mp
 # import asyncio
 from os.path import basename
 from ccxt import ExchangeError
 from database import Database
 from tabulate import tabulate
-from colorama import Fore
+from colorama import Fore, Style, init
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 
 markets = {}
 histories = []
+lock = Lock()
 
-def load_exchange(exchange):
-    # print(f"loading {exchange}")
-    ex = getattr(ccxt, exchange)({
-        'enableRateLimit': True,
-        # 'verbose': True,
-        # 'proxy':'https://cors-anywhere.herokuapp.com/',
-    })
-    try:
-        ex.load_markets()
-        markets[exchange] = ex
-        print(f"{exchange} loaded.")
-    except:
-        print(f"{exchange} NOT loaded!")
-    #await asyncio.sleep(0.01)
+def tprint(*args, **kwargs):
+    ''' Threaded print - printing in multi-threaded environement
+        Please add following lines to your code:
+        from threading import Lock
+        lock = Lock() # global lock
+    '''
+    lock.acquire()
+    print(*args, **kwargs)
+    lock.release()
+
+
+class LoadExchange(threading.Thread):
+    def __init__(self, exchange):
+        threading.Thread.__init__(self)
+        self.exchange = exchange
+
+    def run(self):
+        # print(f"loading {exchange}")
+        exchange = self.exchange
+        ex = getattr(ccxt, exchange)({
+            'enableRateLimit': True,
+            # 'verbose': True,
+            # 'proxy':'https://cors-anywhere.herokuapp.com/',
+        })
+        try:
+            ex.load_markets()
+            markets[exchange] = ex
+            tprint(f"{exchange} loaded.")
+        except:
+            tprint(f"{exchange} NOT loaded!")
+        #await asyncio.sleep(0.01)
     
 
-def fetch(db: Database, exchange: str, pair: str, limit, filename):
-    # exchange, pair = row
-    print(f"Fetching history and orderbook for {exchange}/{pair}")
-    
-    if exchange not in markets:
-        print(f"Failed! {exchange} not in markets list")
-        return
+class Fetch(threading.Thread):
 
-    market = markets[exchange]
+    def __init__(self, db: Database, exchange: str, pair: str, limit: int, filename: str):
+        threading.Thread.__init__(self)
+        self._stop_event = threading.Event()
+        self.db = db
+        self.exchange = exchange
+        self.pair = pair
+        self.limit = limit
+        self.filename = filename
+        
 
-    sql = f"select timestamp from v_last_ts where exchange='{exchange}' and pair='{pair}'"
+    def run(self):
+        # exchange, pair = row
+        start = time.time()
 
-    dt = datetime.utcnow() - relativedelta(months=1) # month ago from now
-    since_db = 0
-    try:
-        since_db = int(db.query(sql).values[0])+1
-    except:
-        pass
-
-    since_1m = int(dt.replace(tzinfo=timezone.utc).timestamp())*1000
-    since = max(since_db, since_1m) # 
-
-    # fetching history and orderbook
-    ratelimit = market.rateLimit
-    start = time.time()
-    try:
-        histories = market.fetch_trades(symbol=pair, since=since, limit=limit)
-        orderbook = market.fetch_order_book(symbol=pair, )
-        ts = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
-        if histories != []:
-            try:
-                for row in histories: # remove info row from result set
-                    del row['info']
-            except:
-                pass
-            finally:
-                history = { 'exchange': exchange,
-                            'pair': pair,
-                            'histories': histories
-                        }                    
-                orderbook = {'exchange': exchange,
-                            'pair': pair,
-                            'timestamp': ts,
-                            'orderbook': orderbook
-                            }
-        else:
-            # search for acceptable since value
-            # since += 1000 # increment by a second
-            logging.info(f"fetch_trades({exchange}/{pair}) returned empty dataset, next ts={since}")
+        db, exchange, pair, limit, filename  = self.db, self.exchange, self.pair, self.limit, self.filename
+        
+        tprint(f"Fetching history and orderbook for {exchange}/{pair}")
+        
+        if exchange not in markets:
+            tprint(f"Failed! {exchange} not in markets list")
             return
 
-    except ExchangeError: # Must specify a time window of no more than 1 month.
-        pass
-    except Exception as e:
-        print(f"Error in {filename}.fetch_all(). {Fore.YELLOW}{e}{Fore.RESET}")
-        logging.info(f"fetch_all({exchange}/{pair}) FAILED!")
+        market = markets[exchange]
+        
+        # fetching history and orderbook
+        histories = []
+        history = {}
+        orderbook = {}        
+        ratelimit = market.rateLimit
+
+        sql = f"select timestamp, from_id from dbo.v_last_ts where exchange='{exchange}' and pair='{pair}'"
+        dt = datetime.utcnow() - relativedelta(months=1) # ago from now
+
+        since_db = 0
+        last_since = 0
+        last_dt = ''
+        since_default = int(dt.replace(tzinfo=timezone.utc).timestamp())*1000
+
+        try:
+            since_db, from_id = db.query(sql).values[0]
+            since_db = int(since_db*1000) + 1 if since_db != None else since_default
+            from_id = int(from_id) if from_id != None else None
+
+        except Exception as e:
+            tprint(f"Error occured while getting since value for {exchange}/{pair}. {filename}.fetch_all(). {Fore.YELLOW}{e}{Fore.RESET}")
+            logging.info(f"Error occured while getting since value for {exchange}/{pair}")
+
+        since = max(since_db, since_default) # 
+        
+        # params = {
+        #     'from_id': str(from_id),  # exchange-specific non-unified parameter name
+        # }
+
+        try:
+            ts = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
+            #if from_id == None:
+            histories = market.fetch_trades(symbol=pair, since=since, limit=limit)
+            #else:
+            #    histories = market.fetch_trades(pair, since, limit, params)
+            orderbook = market.fetch_order_book(symbol=pair, )
+            
+            if len(histories)>0:
+                last_since = int(histories[-1]['timestamp'])
+                last_dt = histories[-1]['datetime']
+
+            elif last_since != since: # histories != []:
+                for row in histories: # remove info row from result set
+                    del row['info']
+
+            else:
+                # search for acceptable since value
+                # since += 1000 # increment by a second
+                logging.info(f"fetch_trades({exchange}/{pair}) returned empty dataset, next ts={since}")
+                # return
+
+        except ExchangeError as e: # Must specify a time window of no more than 1 month.
+            tprint(f"ExchangeError in {exchange}/{pair}. {Fore.YELLOW}{e}{Fore.RESET}")
+            logging.error(f"ExchangeError exception in fetch_all:run({exchange}/{pair})")
+            pass
+
+        except Exception as e:
+            tprint(f"Error in processing {exchange}/{pair}. {filename}.fetch_all(). {Fore.RED}{e}{Fore.RESET}")
+            logging.error(f"fetch_all({exchange}/{pair}) FAILED!")
+
+        finally:
+            history = { 'exchange': exchange,
+                        'pair': pair,
+                        'histories': histories
+                    }                    
+            orderbook = {'exchange': exchange,
+                        'pair': pair,
+                        'timestamp': ts,
+                        'orderbook': orderbook
+                        }        
+
+        # compressing fetched results
+        # start = time.time()
+        data = pickle.dumps([histories, orderbook])
+        #logging.info(f"{exchange}/{pair} before compression: {len(data)}")
+        compressed_data = zlib.compress(data, 9)
+        #elapsed = time.time() - start
+        #logging.info(f"{exchange}/{pair} after compression: {len(compressed_data)}. Compressed in {elapsed:.4f} seconds")
+        
+        # -- BUS SENDING CODE STARTS HERE
+        # -- BUS SENDING CODE ENDS HERE
+
+        # -- BUS RECEIVING CODE STARTS HERE
+        # -- BUS RECEIVING CODE ENDS HERE
+
+        # decompressing fetched results
+        #start = time.time()
+        data = zlib.decompress(compressed_data)
+        histories, orderbook  = pickle.loads(data)
+        #elapsed = time.time() - start
+        #logging.info(f"{exchange}/{pair} after decompression: {len(data)}. Decompressed in {elapsed:.4f} seconds")
+        # logging.info(json.dumps(history))
+
+        try:
+            db.execute("mem.save_orderbook_json", json.dumps(orderbook))
+            if histories != []:
+                db.execute("mem.save_history_json", json.dumps(history))
+
+        except Exception as e:
+            tprint(f"Error in mem.save_history_json() or mem.save_orderbook_json(). {Fore.YELLOW}{e}{Fore.RESET}")
+            logging.error(f"fetch({exchange}/{pair}) FAILED!")
+
+
+        elapsed = time.time() - start
+        delay = 0.0 + max(ratelimit/1000 - elapsed, 0)
+        
+        tprint(f"[{datetime.now()}] {exchange}/{pair}: Ratelimit={ratelimit}, elapsed={elapsed:.4f} seconds") # , since={since}, last_since={last_since}, last_dt={last_dt}")
+        
+        time.sleep(delay)
+
+    def stop(self):
+        self._stop_event.set()
     
-
-    # compressing fetched results
-    # start = time.time()
-    data = pickle.dumps([histories, orderbook])
-    #logging.info(f"{exchange}/{pair} before compression: {len(data)}")
-    compressed_data = zlib.compress(data, 9)
-    #elapsed = time.time() - start
-    #logging.info(f"{exchange}/{pair} after compression: {len(compressed_data)}. Compressed in {elapsed:.4f} seconds")
-    
-    # -- BUS BACK SENDING CODE STARTS HERE
-    # -- BUS BACK SENDING CODE ENDS HERE
-
-    # decompressing fetched results
-    #start = time.time()
-    data = zlib.decompress(compressed_data)
-    histories, orderbook  = pickle.loads(data)
-    #elapsed = time.time() - start
-    #logging.info(f"{exchange}/{pair} after decompression: {len(data)}. Decompressed in {elapsed:.4f} seconds")
-
-    try:
-        db.execute("mem.save_history_json", json.dumps(history))
-        db.execute("mem.save_orderbook_json", json.dumps(orderbook))
-
-    except Exception as e:
-        print(f"Error in mem.save_history_json() or mem.save_orderbook_json(). {Fore.YELLOW}{e}{Fore.RESET}")
-        logging.error(f"fetch({exchange}/{pair}) FAILED!")
-
-
-    elapsed = time.time() - start
-    delay = max(ratelimit - elapsed*1000, 0) + 0.1
-    print(f"waiting {delay} seconds")
-    time.sleep(delay)
+    def stopped(self):
+        return self._stop_event.is_set()
 
 
 
 def main():
+    init(convert=True)  # colorama init 
     print("Fetch History demo")
-    # os.chdir("ccxt")
+    print(f"CCXT version: {ccxt.__version__}")
+    os.chdir("ccxt")
 
     filename = os.path.splitext(basename(__file__))[0] + ".log"
     logging.basicConfig(filename=filename, level=logging.INFO, format=u'%(filename)s:%(lineno)d %(levelname)-8s [%(asctime)s]  %(message)s')
@@ -134,34 +208,42 @@ def main():
     #filename = os.path.splitext(__file__)[0] + ".log"
     
     pair = 'ETH/USDT'
-    #exchanges_list = db.query(f"select distinct exchange from mem.exchanges_pairs with (snapshot) where enabled=1 and pair='{pair}'")['exchange'].tolist()
-    exchanges_list = ['binance', 'exmo', 'bittrex', 'okex']
-
-    threads = [threading.Thread(target=load_exchange, args=(exchange,)) for exchange in exchanges_list]
+    sql = f"select distinct exchange from mem.exchanges_pairs with (snapshot) where enabled=1"
+    # exchanges_list = db.query(sql)['exchange'].tolist()
+    exchanges_list = ['binance', 'exmo', 'bittrex', 'okex', 'hitbtc2', 'cryptopia', 'poloniex']
+    # exchanges_list = ['hitbtc2']
+    # exchanges_list = ['kraken']
+    
+    start = time.time()
+    threads = [LoadExchange(exchange) for exchange in exchanges_list]
     [thread.start() for thread in threads]
     [thread.join() for thread in threads]
     [thread._stop() for thread in threads]
     threads = []
-
-    print("All exchanges are loaded")
-
+    elapsed = time.time() - start
+    print("=============================================")
+    print(f"Loading completed in {elapsed:.4f} seconds")
+    print("=============================================")
     # pairs = db.query("select exchange, pair from mem.exchanges_pairs with (snapshot) where enabled=1")
-    limit = 100
-    
     # for _, row in pairs.iterrows():
-
+    limit = 100
     while True:
         try:
-            threads = [threading.Thread(target=fetch, args=(db, exchange, pair, limit, filename)) for exchange in exchanges_list]
+            start = time.time()
+            threads = [Fetch(db, exchange, pair, limit, filename) for exchange in exchanges_list]
             [thread.start() for thread in threads]
             [thread.join() for thread in threads]
-            # [thread._stop() for thread in threads]
-            #del threads
+            [thread.stop() for thread in threads]
+            elapsed = time.time() - start
+            del threads
+            print(f"Fetching completed in {Fore.YELLOW+Style.BRIGHT}{elapsed:.4f}{Style.RESET_ALL} seconds")
+            print("=============================================")
 
         except KeyboardInterrupt:
-            print("Quit by Ctrl-C")
-            # [thread._stop() for thread in threads]
+            #[thread.join() for thread in threads]
+            print("\nQuit by Ctrl-C\n")
             sys.exit()
+
 
 if __name__ == '__main__':
     main()
