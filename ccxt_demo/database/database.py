@@ -21,7 +21,7 @@ class Database():
     @classmethod
     def getInstance(self, config_ini = "database.ini"):
         if not isinstance(Database.__instance, Database):
-            Database.__instance = Database("database.ini")
+            Database.__instance = Database(config_ini)
         return Database.__instance
         
 

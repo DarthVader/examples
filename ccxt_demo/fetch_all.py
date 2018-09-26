@@ -19,7 +19,7 @@ histories = []
 lock = Lock()
 
 def tprint(*args, **kwargs):
-    ''' Threaded print - printing in multi-threaded environement
+    ''' Threaded print - printing in multi-threaded environement using simple lock
         Please add following lines to your code:
         from threading import Lock
         lock = Lock() # global lock
@@ -88,7 +88,7 @@ class Fetch(threading.Thread):
 
         since_db = 0
         last_since = 0
-        last_dt = ''
+        #last_dt = ''
         since_default = int(dt.replace(tzinfo=timezone.utc).timestamp())*1000
 
         try:
@@ -116,7 +116,7 @@ class Fetch(threading.Thread):
             
             if len(histories)>0:
                 last_since = int(histories[-1]['timestamp'])
-                last_dt = histories[-1]['datetime']
+                #last_dt = histories[-1]['datetime']
 
             elif last_since != since: # histories != []:
                 for row in histories: # remove info row from result set
@@ -150,9 +150,10 @@ class Fetch(threading.Thread):
 
         # compressing fetched results
         # start = time.time()
-        data = pickle.dumps([histories, orderbook])
-        #logging.info(f"{exchange}/{pair} before compression: {len(data)}")
-        compressed_data = zlib.compress(data, 9)
+        #data = pickle.dumps([histories, orderbook]) ## <<----
+        # logging.info(f"{exchange}/{pair} before compression: {len(data)}")
+        #compressed_data = zlib.compress(data, 9) ## <<----
+        
         #elapsed = time.time() - start
         #logging.info(f"{exchange}/{pair} after compression: {len(compressed_data)}. Compressed in {elapsed:.4f} seconds")
         
@@ -164,19 +165,21 @@ class Fetch(threading.Thread):
 
         # decompressing fetched results
         #start = time.time()
-        data = zlib.decompress(compressed_data)
-        histories, orderbook  = pickle.loads(data)
+        
+        #data = zlib.decompress(compressed_data) ## <<----
+        #histories, orderbook  = pickle.loads(data) ## <<----
+
         #elapsed = time.time() - start
         #logging.info(f"{exchange}/{pair} after decompression: {len(data)}. Decompressed in {elapsed:.4f} seconds")
         # logging.info(json.dumps(history))
 
         try:
-            db.execute("mem.save_orderbook_json", json.dumps(orderbook))
+            db.execute("dbo.save_order_book_json", json.dumps(orderbook))
             if histories != []:
                 db.execute("mem.save_history_json", json.dumps(history))
 
         except Exception as e:
-            tprint(f"Error in mem.save_history_json() or mem.save_orderbook_json(). {Fore.YELLOW}{e}{Fore.RESET}")
+            tprint(f"Error in mem.save_history_json() or mem.save_order_book_json(). {Fore.YELLOW}{e}{Fore.RESET}")
             logging.error(f"fetch({exchange}/{pair}) FAILED!")
 
 
@@ -199,18 +202,19 @@ def main():
     init(convert=True)  # colorama init 
     print("Fetch History demo")
     print(f"CCXT version: {ccxt.__version__}")
-    os.chdir("ccxt")
+    # os.chdir("ccxt")
 
     filename = os.path.splitext(basename(__file__))[0] + ".log"
     logging.basicConfig(filename=filename, level=logging.INFO, format=u'%(filename)s:%(lineno)d %(levelname)-8s [%(asctime)s]  %(message)s')
     #db = Database(os.getcwd() + "\\database.ini")
-    db = Database.getInstance()
+    db = Database.getInstance(config_ini="database/database.ini")
     #filename = os.path.splitext(__file__)[0] + ".log"
     
     pair = 'ETH/USDT'
-    sql = f"select distinct exchange from mem.exchanges_pairs with (snapshot) where enabled=1"
+    # sql = f"select distinct exchange from mem.exchanges_pairs with (snapshot) where enabled=1"
     # exchanges_list = db.query(sql)['exchange'].tolist()
     exchanges_list = ['binance', 'exmo', 'bittrex', 'okex', 'hitbtc2', 'cryptopia', 'poloniex']
+    # exchanges_list = ['binance', 'exmo', 'okex', 'poloniex']
     # exchanges_list = ['hitbtc2']
     # exchanges_list = ['kraken']
     
