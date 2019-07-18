@@ -37,7 +37,7 @@ def main():
     #queue_name = args["queue"] # jobs
     #routing_key = args["routing_key"]
     config_ini = "emitter.ini"
-    job    = Messages(type="jobs", config_ini=config_ini, exchange_name= "history_jobs", queue_name="history_jobs")
+    job     = Messages(type="jobs", config_ini=config_ini, exchange_name= "history_jobs", queue_name="history_jobs")
     results = Messages(type="results", config_ini=config_ini, exchange_name="history_results", queue_name="history_results") #MessageBus()    
     market = Markets()
 

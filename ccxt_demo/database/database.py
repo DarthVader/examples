@@ -47,7 +47,9 @@ class Database():
             start = time.time()
             self.connection_string = f"mssql+pymssql://{self.user}:{self.password}@{self.server}/{self.database}"
             self.engine = sa.create_engine(self.connection_string, pool_size=16, pool_pre_ping=True, 
-                                           strategy='threadlocal', isolation_level='AUTOCOMMIT')
+                                           strategy='threadlocal', 
+                                           isolation_level='AUTOCOMMIT'
+                                           )
             # self.session_factory = sessionmaker(bind=self.engine)
             # self.Session = scoped_session(self.session_factory)
             
